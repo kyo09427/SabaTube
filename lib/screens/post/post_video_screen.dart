@@ -18,10 +18,14 @@ class _PostVideoScreenState extends State<PostVideoScreen> {
   final _titleController = TextEditingController();
   final _urlController = TextEditingController();
   final _tagInputController = TextEditingController();
+  final _durationController = TextEditingController();
   bool _isLoading = false;
+  bool _isFetchingInfo = false;
   String? _errorMessage;
   String? _previewThumbnail;
   String? _videoId;
+  String? _fetchedYoutubeTitle; // oEmbedで取得した元タイトル
+  bool _durationAutoFetched = false; // 再生時間が自動取得済みか
 
   // カテゴリとタグの状態
   String _selectedCategory = '雑談';
@@ -44,6 +48,7 @@ class _PostVideoScreenState extends State<PostVideoScreen> {
     _titleController.dispose();
     _urlController.dispose();
     _tagInputController.dispose();
+    _durationController.dispose();
     super.dispose();
   }
 
@@ -89,14 +94,54 @@ class _PostVideoScreenState extends State<PostVideoScreen> {
     });
   }
 
-  /// URLからサムネイルをプレビュー
-  void _updatePreview(String url) {
+  /// URLからサムネイルをプレビューし、oEmbed APIでタイトル＋ページHTMLで再生時間を自動取得
+  Future<void> _updatePreview(String url) async {
+    final videoId = YouTubeService.extractVideoId(url);
     setState(() {
-      _videoId = YouTubeService.extractVideoId(url);
-      _previewThumbnail = _videoId != null
-          ? YouTubeService.getThumbnailUrl(_videoId!)
+      _videoId = videoId;
+      _previewThumbnail = videoId != null
+          ? YouTubeService.getThumbnailUrl(videoId)
           : null;
     });
+
+    // 有効なYouTube URLの場合はタイトルと再生時間を並行取得
+    if (videoId != null && YouTubeService.isValidYouTubeUrl(url)) {
+      setState(() => _isFetchingInfo = true);
+      try {
+        // タイトル（oEmbed）と再生時間（HTMLスクレイプ）を並行取得
+        final results = await Future.wait([
+          YouTubeService.fetchVideoInfo(url),
+          YouTubeService.fetchVideoDuration(url),
+        ]);
+
+        final info = results[0] as YouTubeVideoInfo?;
+        final duration = results[1] as String?;
+
+        if (mounted) {
+          setState(() {
+            if (info != null) {
+              _fetchedYoutubeTitle = info.title;
+              // タイトルが未入力の場合のみ自動補完（手動入力を上書きしない）
+              if (_titleController.text.trim().isEmpty && info.title.isNotEmpty) {
+                _titleController.text = info.title;
+              }
+            }
+            // 再生時間が取得できた場合のみ自動補完（手動入力を上書きしない）
+            if (duration != null && _durationController.text.trim().isEmpty) {
+              _durationController.text = duration;
+              _durationAutoFetched = true;
+            }
+          });
+        }
+      } finally {
+        if (mounted) setState(() => _isFetchingInfo = false);
+      }
+    } else {
+      setState(() {
+        _fetchedYoutubeTitle = null;
+        _durationAutoFetched = false;
+      });
+    }
   }
 
   /// 新しいプレイリストを作成するダイアログ
@@ -186,6 +231,10 @@ class _PostVideoScreenState extends State<PostVideoScreen> {
         userId: currentUser.id,
         mainCategory: _selectedCategory,
         tags: _tags,
+        duration: _durationController.text.trim().isEmpty
+            ? null
+            : _durationController.text.trim(),
+        youtubeTitle: _fetchedYoutubeTitle,
       );
 
       // 動画を挿入して、挿入されたデータを取得
@@ -414,12 +463,39 @@ class _PostVideoScreenState extends State<PostVideoScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'プレビュー',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                    Row(
+                      children: [
+                        const Text(
+                          'プレビュー',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        if (_isFetchingInfo) ...[
+                          const SizedBox(width: 8),
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            '情報取得中...',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ] else if (_fetchedYoutubeTitle != null) ...[
+                          const SizedBox(width: 8),
+                          const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            _durationAutoFetched
+                                ? 'タイトル・再生時間 自動取得済み'
+                                : 'タイトル自動取得済み',
+                            style: const TextStyle(fontSize: 12, color: Colors.green),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 8),
                     ClipRRect(
@@ -462,7 +538,7 @@ class _PostVideoScreenState extends State<PostVideoScreen> {
                   labelText: '動画タイトル',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.title),
-                  helperText: '動画の説明やメモを入力',
+                  helperText: '動画の説明やメモを入力（URL入力時に自動補完）',
                 ),
                 maxLength: 100,
                 textInputAction: TextInputAction.done,
@@ -477,6 +553,38 @@ class _PostVideoScreenState extends State<PostVideoScreen> {
                   }
                   if (value.trim().length < 3) {
                     return 'タイトルは3文字以上で入力してください';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // 再生時間入力（任意）
+              TextFormField(
+                controller: _durationController,
+                decoration: InputDecoration(
+                  labelText: '再生時間（任意）',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.timer_outlined),
+                  helperText: _durationAutoFetched
+                      ? 'URLから自動取得しました（修正可能）'
+                      : 'URL入力で自動取得。例: "12:45" または "1:23:45"',
+                  helperStyle: _durationAutoFetched
+                      ? const TextStyle(color: Colors.green)
+                      : null,
+                  suffixIcon: _durationAutoFetched
+                      ? const Icon(Icons.auto_awesome, color: Colors.green, size: 18)
+                      : null,
+                ),
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.next,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) return null; // 任意
+                  // MM:SS または H:MM:SS 形式のバリデーション
+                  final trimmed = value.trim();
+                  final valid = RegExp(r'^\d{1,2}:\d{2}(:\d{2})?$').hasMatch(trimmed);
+                  if (!valid) {
+                    return '形式が正しくありません。例: "12:45" または "1:23:45"';
                   }
                   return null;
                 },
