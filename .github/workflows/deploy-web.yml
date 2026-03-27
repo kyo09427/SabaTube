@@ -39,4 +39,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy build/web --project-name=saba-videos
+          command: pages deploy build/web --project-name=saba-videos --commit-dirty=true --commit-message="${{ github.sha }}"
