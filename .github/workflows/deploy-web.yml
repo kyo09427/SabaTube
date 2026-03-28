@@ -30,7 +30,9 @@ jobs:
           echo "DISCORD_GUILD_ID=${{ secrets.DISCORD_GUILD_ID }}" >> .env
 
       - name: Create firebase_options.dart
-        run: echo "${{ secrets.FIREBASE_OPTIONS_DART_B64 }}" | tr -d '[:space:]' | base64 -d > lib/firebase_options.dart
+        env:
+          FIREBASE_OPTIONS_DART_B64: ${{ secrets.FIREBASE_OPTIONS_DART_B64 }}
+        run: python3 -c "import base64,os; open('lib/firebase_options.dart','wb').write(base64.b64decode(os.environ['FIREBASE_OPTIONS_DART_B64']))"
 
       - name: Install dependencies
         run: flutter pub get
