@@ -29,6 +29,9 @@ jobs:
           echo "SHARED_PASSWORD=${{ secrets.SHARED_PASSWORD }}" >> .env
           echo "DISCORD_GUILD_ID=${{ secrets.DISCORD_GUILD_ID }}" >> .env
 
+      - name: Create firebase_options.dart
+        run: echo "${{ secrets.FIREBASE_OPTIONS_DART }}" > lib/firebase_options.dart
+
       - name: Install dependencies
         run: flutter pub get
 
