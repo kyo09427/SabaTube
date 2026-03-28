@@ -1,0 +1,80 @@
+-- ============================================================
+-- プッシュ通知対応マイグレーション（将来用 / 未実行）
+-- 概要: FCMトークンをprofilesテーブルに追加し、
+--       DBトリガーでプッシュ通知をエッジ関数へ転送する仕組みを追加する。
+--
+-- 実行タイミング:
+--   firebase_messaging パッケージを導入し、
+--   Supabase Edge Function (send-push-notification) を実装した後に実行する。
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 1. profiles テーブルに FCM トークンカラムを追加
+-- ------------------------------------------------------------
+-- ALTER TABLE profiles
+--   ADD COLUMN IF NOT EXISTS fcm_token TEXT;
+--
+-- CREATE INDEX IF NOT EXISTS profiles_fcm_token_idx
+--   ON profiles (id)
+--   WHERE fcm_token IS NOT NULL;
+
+-- ------------------------------------------------------------
+-- 2. Edge Function 呼び出し用トリガー関数
+--    (notifications テーブル INSERT 後に発火)
+-- ------------------------------------------------------------
+-- CREATE OR REPLACE FUNCTION trigger_push_notification()
+-- RETURNS TRIGGER
+-- LANGUAGE plpgsql
+-- SECURITY DEFINER
+-- SET search_path = public
+-- AS $$
+-- DECLARE
+--   fcm_token TEXT;
+-- BEGIN
+--   -- 通知受信者の FCM トークンを取得
+--   SELECT p.fcm_token INTO fcm_token
+--   FROM profiles p
+--   WHERE p.id = NEW.user_id;
+--
+--   -- FCM トークンが登録されている場合のみ Edge Function を呼び出す
+--   IF fcm_token IS NOT NULL THEN
+--     PERFORM net.http_post(
+--       url    := current_setting('app.supabase_url') || '/functions/v1/send-push-notification',
+--       body   := jsonb_build_object(
+--                   'token',   fcm_token,
+--                   'title',   NEW.title,
+--                   'body',    NEW.body,
+--                   'data',    NEW.data
+--                 )::text,
+--       headers := jsonb_build_object(
+--                   'Content-Type',  'application/json',
+--                   'Authorization', 'Bearer ' || current_setting('app.service_role_key')
+--                 )
+--     );
+--   END IF;
+--
+--   RETURN NEW;
+-- END;
+-- $$;
+--
+-- DROP TRIGGER IF EXISTS on_notification_push ON notifications;
+--
+-- CREATE TRIGGER on_notification_push
+--   AFTER INSERT ON notifications
+--   FOR EACH ROW
+--   EXECUTE FUNCTION trigger_push_notification();
+
+-- ------------------------------------------------------------
+-- 実装メモ
+-- ------------------------------------------------------------
+-- Flutter側の作業:
+--   1. pubspec.yaml に firebase_core / firebase_messaging を追加
+--   2. android/app/google-services.json を配置
+--   3. NotificationService.registerFcmToken() を呼び出す
+--      (スタブは notification_service.dart に用意済み)
+--
+-- Supabase側の作業:
+--   1. Edge Function "send-push-notification" を作成
+--      (FCMのHTTP v1 API を呼び出す)
+--   2. pg_net 拡張が有効か確認: SELECT * FROM pg_extension WHERE extname='pg_net';
+-- ------------------------------------------------------------

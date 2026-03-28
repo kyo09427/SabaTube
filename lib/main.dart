@@ -3,6 +3,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/supabase_service.dart';
 import 'services/discord_auth_service.dart';
+import 'services/notification_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 
@@ -376,17 +377,24 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 ),
               );
             }
-            // 検証済み → ホーム画面
+            // 検証済み → 通知サービス初期化 → ホーム画面
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              NotificationService.instance.initialize();
+            });
             return const HomeScreen();
           } else {
             // メール+パスワードユーザー: 検証不要でホーム画面
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              NotificationService.instance.initialize();
+            });
             return const HomeScreen();
           }
         } else {
-          // 未ログイン → ログイン画面（状態リセット）
+          // 未ログイン → 通知サービスをリセット → ログイン画面（状態リセット）
           if (_guildVerified || _isVerifyingGuild != null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
+                NotificationService.instance.dispose();
                 setState(() {
                   _guildVerified = false;
                   _isVerifyingGuild = null;

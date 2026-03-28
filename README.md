@@ -15,6 +15,7 @@
 - ⚡ **リアルタイム更新**: 誰かが投稿したらすぐに反映
 - ⚡ **高速表示**: TTLキャッシュでホーム・マイページ・チャンネルなどの再表示を高速化
 - 📋 **プレイリスト機能**: 動画をプレイリストにまとめて整理。投稿・編集時に選択でき、チャンネルページからまとめて視聴可能
+- 🔔 **アプリ内通知**: チャンネル登録しているユーザーが動画を投稿すると即座に通知が届く。未読バッジ表示・既読管理対応
 - 🎨 **YouTubeライクなUI**: 使い慣れたインターフェース
 
 ## 技術スタック
@@ -76,9 +77,18 @@ DISCORD_GUILD_ID=your-discord-guild-id
 
 #### 3.3 データベースのセットアップ
 
-Supabaseダッシュボードの「SQL Editor」で `database_setup.sql` の内容を実行してください。
+Supabaseダッシュボードの「SQL Editor」で以下のSQLファイルを**順番に**実行してください。
 
-このSQLファイルには以下が含まれています:
+| ファイル | 説明 |
+|---------|------|
+| `database_setup.sql` | 基本テーブル・RLS・トリガー（必須） |
+| `subscriptions_migration.sql` | チャンネル登録テーブル |
+| `category_tags_migration.sql` | カテゴリ・タグテーブル |
+| `playlist_migration.sql` | プレイリストテーブル |
+| `discord_guild_migration.sql` | Discord検証フラグ |
+| `notifications_migration.sql` | **通知テーブル・DBトリガー**（アプリ内通知機能） |
+
+`database_setup.sql` には以下が含まれています:
 - **videosテーブル**: 動画情報を保存
 - **profilesテーブル**: ユーザープロフィール情報（ユーザー名、アバター、自己紹介）
 - **RLSポリシー**: セキュリティ設定
@@ -193,11 +203,13 @@ lib/
 │   ├── user_profile.dart                  # ユーザープロフィールモデル
 │   ├── subscription.dart                  # チャンネル登録モデル
 │   ├── channel_stats.dart                 # チャンネル統計モデル
+│   ├── notification_model.dart            # 通知モデル
 │   ├── tag.dart                           # タグモデル
 │   └── app_user.dart                      # ユーザーモデル
 ├── services/                               # サービス層
 │   ├── supabase_service.dart              # Supabase接続・登録管理
 │   ├── cache_service.dart                 # TTLキャッシュサービス（メモリキャッシュ）
+│   ├── notification_service.dart          # アプリ内通知・未読数管理・Realtime購読
 │   ├── profile_service.dart               # プロフィール取得サービス
 │   └── youtube_service.dart               # YouTube関連機能
 ├── utils/                                  # ユーティリティ
@@ -219,6 +231,8 @@ lib/
 │   │   └── timeline_screen.dart           # タイムライン（年月別アーカイブ）
 │   ├── post/
 │   │   └── post_video_screen.dart         # 投稿画面（URL入力・プレビュー）
+│   ├── notifications/
+│   │   └── notifications_screen.dart      # 通知一覧画面（既読管理・チャンネル遷移）
 │   └── profile/
 │       ├── my_page_screen.dart            # マイページ画面（キャッシュ・プルリフレッシュ対応）
 │       ├── my_videos_screen.dart          # 投稿動画管理・編集（プレイリスト選択対応）
@@ -279,6 +293,22 @@ lib/
 | subscriber_id | UUID | 登録者のユーザーID |
 | channel_id | UUID | 登録先チャンネルのユーザーID |
 | created_at | TIMESTAMPTZ | 登録日時 |
+
+### notifications テーブル
+
+| カラム名 | 型 | 説明 |
+|---------|---|------|
+| id | UUID | 主キー |
+| user_id | UUID | 通知受信者のユーザーID |
+| type | TEXT | 通知種別（例: `new_video`） |
+| title | TEXT | 通知タイトル |
+| body | TEXT | 通知本文（動画タイトル） |
+| data | JSONB | 付加データ（`video_id`, `channel_id`, `channel_name`） |
+| is_read | BOOLEAN | 既読フラグ（デフォルト `false`） |
+| created_at | TIMESTAMPTZ | 生成日時 |
+
+動画投稿時に PostgreSQL トリガー（`on_new_video_notify`）が自動的に購読者全員分のレコードを生成します。
+`notifications_migration.sql` を Supabase の SQL Editor で実行してください。
 
 ### インデックス
 
@@ -344,6 +374,18 @@ lib/
 - ネットワークエラーの適切な処理
 - ユーザーフレンドリーなエラーメッセージ
 - null安全性の確保
+
+### 13. アプリ内通知機能
+
+- 動画投稿時に PostgreSQL トリガーがDBレベルで購読者全員分の通知レコードを自動生成
+  - アプリ経由・直接INSERT問わず確実に発火（投稿経路に依存しない設計）
+- Supabase Realtime の WebSocket で新着通知をリアルタイム受信
+  - `NotificationService.unreadCount`（`ValueNotifier<int>`）をインクリメント
+  - ポーリングなし・差分受信のみ
+- ホーム画面のベルアイコンに未読数バッジを `ValueListenableBuilder` で動的表示
+- 通知一覧画面: 最新50件表示・未読ハイライト・タップで既読＋チャンネル遷移・一括既読ボタン
+- ログアウト時に Realtime 購読を解除し未読数をリセット
+- 将来のプッシュ通知実装向けに `registerFcmToken()` スタブと `push_notifications_migration.sql` を用意済み
 
 ### 12. プレイリスト機能
 - 動画投稿・編集時にプレイリストを選択（チップUI）
@@ -428,12 +470,24 @@ lib/
 - [ ] 投稿者名での検索
 - [ ] いいね・コメント機能
 - [ ] 動画の埋め込み再生
-- [ ] プッシュ通知（新着動画）
+- [ ] プッシュ通知（FCMトークン対応・`push_notifications_migration.sql` / `registerFcmToken()` スタブ準備済み）
 - [ ] 多言語対応
 
 ## バージョン履歴
 
-### v1.8.0 (2026-03-27) - 最新版
+### v1.9.0 (2026-03-28) - 最新版
+- **アプリ内通知機能を実装**
+  - 🟢 **DBトリガーによる通知生成**: `videos` テーブルへの INSERT 時に PostgreSQL トリガー（`on_new_video_notify`）が発火し、購読者全員に通知レコードを自動生成
+  - 🟢 **Supabase Realtime でリアルタイム受信**: WebSocket 経由で新着通知をリアルタイム受信し、ベルアイコンの未読バッジを即時更新
+  - 🟢 **通知一覧画面**: 最新50件表示・未読ハイライト・タップで既読＋チャンネル遷移・一括既読ボタン・プルトゥリフレッシュ対応
+  - 🟢 **プッシュ通知への拡張準備**: `push_notifications_migration.sql`（FCMトークン対応マイグレーション）と `NotificationService.registerFcmToken()` スタブを用意
+  - 新規ファイル: `notifications_migration.sql`（notificationsテーブル・RLS・DBトリガー）
+  - 新規ファイル: `push_notifications_migration.sql`（将来のFCM対応用・全コメントアウト）
+  - 新規ファイル: `lib/models/notification_model.dart`
+  - 新規ファイル: `lib/services/notification_service.dart`
+  - 新規ファイル: `lib/screens/notifications/notifications_screen.dart`
+
+### v1.8.0 (2026-03-27)
 - **PC版検索機能・UIの堅牢性向上と動画再生時間対応**
   - 🔴 **PC版検索バーのクラッシュ修正**: `SearchAnchor`のドロップダウンが未展開の状態でEnterを押下すると白画面でクラッシュする問題を、`isOpen`の事前チェックとフォーカス解除で修正
   - 🟡 **PC版検索バーのUX改善**: 検索窓のクリック（`onTap`）や文字入力（`onChanged`）に連動して検索履歴ドロップダウンが自然に開くように挙動を最適化

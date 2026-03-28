@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/video.dart';
 import '../../services/cache_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/search_history_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/youtube_service.dart';
+import '../notifications/notifications_screen.dart';
 import '../../utils/japanese_text_utils.dart';
 import '../../widgets/app_bottom_navigation_bar.dart';
 import '../../widgets/skeleton_widgets.dart';
@@ -1001,28 +1003,40 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: () {},
         color: _textWhite,
       ),
-      Stack(
-        alignment: Alignment.center,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
-            color: _textWhite,
-          ),
-          Positioned(
-            top: 12,
-            right: 12,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: _ytRed,
-                border: Border.all(color: _ytBackground, width: 1.5),
-                borderRadius: BorderRadius.circular(5),
+      ValueListenableBuilder<int>(
+        valueListenable: NotificationService.instance.unreadCount,
+        builder: (context, count, _) {
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
+                  );
+                },
+                color: _textWhite,
               ),
-            ),
-          )
-        ],
+              if (count > 0)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: _ytRed,
+                      border: Border.all(color: _ytBackground, width: 1.5),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     ];
   }
