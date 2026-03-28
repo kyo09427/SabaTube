@@ -57,7 +57,7 @@ jobs:
       - name: google-services.json の作成
         env:
           GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
-        run: python3 -c "import base64,os; open('android/app/google-services.json','wb').write(base64.b64decode(os.environ['GOOGLE_SERVICES_JSON_B64']))"
+        run: python3 -c "import base64,os; open('android/app/google-services.json','wb').write(base64.b64decode(os.environ['GOOGLE_SERVICES_JSON_B64'].strip()))"
 
       - name: 依存関係のインストール
         run: flutter pub get
