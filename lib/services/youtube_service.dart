@@ -276,7 +276,13 @@ class YouTubeService {
         debugPrint('🎬 Attempting to launch video: $url');
       }
 
-      final uri = Uri.parse(url.trim());
+      final uri = Uri.tryParse(url.trim());
+      if (uri == null) {
+        if (kDebugMode) {
+          debugPrint('⚠️ Invalid URL provided to launchVideo: $url');
+        }
+        return false;
+      }
 
       // URLが開けるかチェック
       if (!await canLaunchUrl(uri)) {

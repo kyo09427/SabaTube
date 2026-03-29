@@ -122,13 +122,15 @@ class DiscordAuthService {
       }
 
       // Discord APIでユーザーのギルド一覧を取得
-      final response = await http.get(
-        Uri.parse('https://discord.com/api/v10/users/@me/guilds'),
-        headers: {
-          'Authorization': 'Bearer $providerToken',
-          'Content-Type': 'application/json',
-        },
-      );
+      final response = await http
+          .get(
+            Uri.parse('https://discord.com/api/v10/users/@me/guilds'),
+            headers: {
+              'Authorization': 'Bearer $providerToken',
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         if (kDebugMode) {
@@ -253,7 +255,11 @@ class DiscordAuthService {
       // エラーが発生した場合もサインアウト
       try {
         await SupabaseService.instance.signOut();
-      } catch (_) {}
+      } catch (signOutError) {
+        if (kDebugMode) {
+          debugPrint('⚠️ Sign out failed during error recovery: $signOutError');
+        }
+      }
       rethrow;
     }
   }

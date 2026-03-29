@@ -1,6 +1,8 @@
 /// プレイリスト関連のSupabase操作サービス
 library;
 
+import 'package:flutter/foundation.dart';
+
 import '../models/playlist.dart';
 import '../models/video.dart';
 import 'supabase_service.dart';
@@ -25,8 +27,9 @@ class PlaylistService {
         .eq('user_id', userId)
         .order('created_at', ascending: false);
 
-    final playlists = (playlistsResponse as List)
-        .map((p) => Playlist.fromJson(p as Map<String, dynamic>))
+    final playlists = (playlistsResponse is List ? playlistsResponse : <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map((p) => Playlist.fromJson(p))
         .toList();
 
     if (playlists.isEmpty) return [];
@@ -41,9 +44,11 @@ class PlaylistService {
 
     // playlist_id ごとに動画を集める
     final Map<String, List<Map<String, dynamic>>> pvMap = {};
-    for (final row in (pvResponse as List)) {
-      final pid = row['playlist_id'] as String;
-      pvMap.putIfAbsent(pid, () => []).add(row as Map<String, dynamic>);
+    for (final row in (pvResponse is List ? pvResponse : <dynamic>[])) {
+      if (row is! Map<String, dynamic>) continue;
+      final pid = row['playlist_id'] as String? ?? '';
+      if (pid.isEmpty) continue;
+      pvMap.putIfAbsent(pid, () => []).add(row);
     }
 
     // 3) PlaylistWithMeta を組み立てる
@@ -84,8 +89,9 @@ class PlaylistService {
         .eq('user_id', currentUser.id)
         .order('created_at', ascending: false);
 
-    return (response as List)
-        .map((p) => Playlist.fromJson(p as Map<String, dynamic>))
+    return (response is List ? response : <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map((p) => Playlist.fromJson(p))
         .toList();
   }
 
@@ -100,8 +106,9 @@ class PlaylistService {
         .from('playlists')
         .insert({'user_id': currentUser.id, 'name': name.trim()})
         .select()
-        .single();
+        .maybeSingle();
 
+    if (response == null) throw Exception('プレイリストの作成に失敗しました');
     return Playlist.fromJson(response);
   }
 
@@ -121,7 +128,11 @@ class PlaylistService {
         .eq('video_id', videoId)
         .inFilter('playlist_id', myPlaylistIds);
 
-    return (response as List).map((r) => r['playlist_id'] as String).toList();
+    return (response is List ? response : <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map((r) => r['playlist_id'] as String? ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
   }
 
   /// 動画のプレイリスト関連付けを一括更新する
@@ -165,7 +176,8 @@ class PlaylistService {
         .order('added_at', ascending: false);
 
     final List<Video> videos = [];
-    for (final row in (response as List)) {
+    for (final row in (response is List ? response : <dynamic>[])) {
+      if (row is! Map<String, dynamic>) continue;
       final videoJson = row['videos'] as Map<String, dynamic>?;
       if (videoJson == null) continue;
 
@@ -181,7 +193,9 @@ class PlaylistService {
           if (profileResponse != null) {
             videoJson['profiles'] = profileResponse;
           }
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('⚠️ Failed to fetch profile for user $userId: $e');
+        }
       }
 
       // タグを取得
@@ -192,11 +206,13 @@ class PlaylistService {
               .from('video_tags')
               .select('tags!inner(name)')
               .eq('video_id', videoId);
-          videoJson['tags'] = (tagsResponse as List)
+          videoJson['tags'] = (tagsResponse is List ? tagsResponse : <dynamic>[])
+              .whereType<Map<String, dynamic>>()
               .map((t) => t['tags']?['name']?.toString() ?? '')
               .where((name) => name.isNotEmpty)
               .toList();
-        } catch (_) {
+        } catch (e) {
+          debugPrint('⚠️ Failed to fetch tags for video $videoId: $e');
           videoJson['tags'] = <String>[];
         }
       }

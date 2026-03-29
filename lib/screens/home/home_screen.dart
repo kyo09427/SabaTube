@@ -104,10 +104,11 @@ class _HomeScreenState extends State<HomeScreen> {
           .select('*')
           .order('created_at', ascending: false);
 
-      final videosData = response as List<dynamic>;
+      final videosData = response is List<dynamic> ? response : <dynamic>[];
 
       // 各動画のユーザーIDを収集（重複を除く）
       final userIds = videosData
+          .whereType<Map<String, dynamic>>()
           .map((v) => v['user_id'] as String?)
           .where((id) => id != null && id.isNotEmpty)
           .toSet()
@@ -121,15 +122,22 @@ class _HomeScreenState extends State<HomeScreen> {
             .select('*')
             .inFilter('id', userIds);
 
-        for (final profile in (profilesResponse as List)) {
-          profilesMap[profile['id'] as String] = profile;
+        for (final profile in (profilesResponse is List ? profilesResponse : <dynamic>[])) {
+          if (profile is Map<String, dynamic>) {
+            final id = profile['id'] as String?;
+            if (id != null) profilesMap[id] = profile;
+          }
         }
       }
 
       // 各動画のタグ情報を取得
       Map<String, List<String>> videoTagsMap = {};
       if (videosData.isNotEmpty) {
-        final videoIds = videosData.map((v) => v['id'] as String).toList();
+        final videoIds = videosData
+            .whereType<Map<String, dynamic>>()
+            .map((v) => v['id'] as String? ?? '')
+            .where((id) => id.isNotEmpty)
+            .toList();
 
         // video_tagsテーブルとtagsテーブルをJOINして取得
         final tagsResponse = await _supabase
@@ -137,9 +145,13 @@ class _HomeScreenState extends State<HomeScreen> {
             .select('video_id, tags!inner(name)')
             .inFilter('video_id', videoIds);
 
-        for (final item in (tagsResponse as List)) {
-          final videoId = item['video_id'] as String;
-          final tagName = item['tags']['name'] as String;
+        for (final item in (tagsResponse is List ? tagsResponse : <dynamic>[])) {
+          if (item is! Map<String, dynamic>) continue;
+          final videoId = item['video_id'] as String? ?? '';
+          final tagName = item['tags'] is Map
+              ? (item['tags'] as Map)['name'] as String? ?? ''
+              : '';
+          if (videoId.isEmpty || tagName.isEmpty) continue;
 
           if (!videoTagsMap.containsKey(videoId)) {
             videoTagsMap[videoId] = [];
@@ -149,22 +161,20 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       // 動画データとプロフィール情報、タグ情報を結合
-      final videos = videosData.map((videoJson) {
-        final userId = videoJson['user_id'] as String?;
-        if (userId != null && profilesMap.containsKey(userId)) {
-          videoJson['profiles'] = profilesMap[userId];
-        }
+      final videos = videosData
+          .whereType<Map<String, dynamic>>()
+          .map((videoJson) {
+            final userId = videoJson['user_id'] as String?;
+            if (userId != null && profilesMap.containsKey(userId)) {
+              videoJson['profiles'] = profilesMap[userId];
+            }
 
-        // タグ情報を追加
-        final videoId = videoJson['id'] as String;
-        if (videoTagsMap.containsKey(videoId)) {
-          videoJson['tags'] = videoTagsMap[videoId];
-        } else {
-          videoJson['tags'] = [];
-        }
+            // タグ情報を追加
+            final videoId = videoJson['id'] as String? ?? '';
+            videoJson['tags'] = videoTagsMap[videoId] ?? [];
 
-        return Video.fromJsonWithProfile(videoJson as Map<String, dynamic>);
-      })
+            return Video.fromJsonWithProfile(videoJson);
+          })
           .where((video) => video.id.isNotEmpty)
           .toList();
 

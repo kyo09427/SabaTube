@@ -189,7 +189,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // エラー発生時もサインアウト
         try {
           await SupabaseService.instance.signOut();
-        } catch (_) {}
+        } catch (signOutError) {
+          debugPrint('⚠️ Sign out failed during error recovery: $signOutError');
+        }
         setState(() {
           _isVerifyingGuild = false;
           _guildVerified = false;
