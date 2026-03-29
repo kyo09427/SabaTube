@@ -62,9 +62,10 @@ class _TimelineScreenState extends State<TimelineScreen> {
     // 現在見えているセクションを特定（簡易実装）
     for (final key in _sortedMonthKeys) {
       final globalKey = _sectionKeys[key];
-      if (globalKey?.currentContext == null) continue;
+      final context = globalKey?.currentContext;
+      if (context == null) continue;
 
-      final renderBox = globalKey!.currentContext!.findRenderObject() as RenderBox?;
+      final renderBox = context.findRenderObject() as RenderBox?;
       if (renderBox == null) continue;
 
       final position = renderBox.localToGlobal(Offset.zero);
@@ -118,10 +119,11 @@ class _TimelineScreenState extends State<TimelineScreen> {
           .select('*')
           .order('created_at', ascending: false);
 
-      final videosData = response as List<dynamic>;
+      final videosData = response is List<dynamic> ? response : <dynamic>[];
 
       // プロフィール情報を一括取得
       final userIds = videosData
+          .whereType<Map<String, dynamic>>()
           .map((v) => v['user_id'] as String?)
           .where((id) => id != null && id.isNotEmpty)
           .toSet()
@@ -133,20 +135,27 @@ class _TimelineScreenState extends State<TimelineScreen> {
             .from('profiles')
             .select('*')
             .inFilter('id', userIds);
-        for (final profile in (profilesResponse as List)) {
-          profilesMap[profile['id'] as String] = profile;
+        for (final profile in (profilesResponse is List ? profilesResponse : <dynamic>[])) {
+          if (profile is Map<String, dynamic>) {
+            final id = profile['id'] as String?;
+            if (id != null) profilesMap[id] = profile;
+          }
         }
       }
 
       // 動画オブジェクトを生成
-      final videos = videosData.map((videoJson) {
-        final userId = videoJson['user_id'] as String?;
-        if (userId != null && profilesMap.containsKey(userId)) {
-          videoJson['profiles'] = profilesMap[userId];
-        }
-        videoJson['tags'] = [];
-        return Video.fromJsonWithProfile(videoJson as Map<String, dynamic>);
-      }).where((v) => v.id.isNotEmpty).toList();
+      final videos = videosData
+          .whereType<Map<String, dynamic>>()
+          .map((videoJson) {
+            final userId = videoJson['user_id'] as String?;
+            if (userId != null && profilesMap.containsKey(userId)) {
+              videoJson['profiles'] = profilesMap[userId];
+            }
+            videoJson['tags'] = [];
+            return Video.fromJsonWithProfile(videoJson);
+          })
+          .where((v) => v.id.isNotEmpty)
+          .toList();
 
       // 年月でグループ化
       final grouped = <String, List<Video>>{};

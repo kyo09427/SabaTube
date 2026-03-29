@@ -294,7 +294,9 @@ class SupabaseService {
       }
 
       // メールアドレスのローカル部分をデフォルトユーザー名として使用
-      String defaultUsername = user.email!.split('@')[0];
+      // emailがnullの場合（Discord OAuthなど）はuser IDの先頭8文字をフォールバックとして使用
+      String defaultUsername =
+          user.email?.split('@')[0] ?? 'user_${user.id.substring(0, 8)}';
 
       // ユーザー名が既に存在するかチェック
       final existingUsername = await client
@@ -525,7 +527,7 @@ class SupabaseService {
           .select()
           .eq('channel_id', channelId);
 
-      return (result as List).length;
+      return result is List ? result.length : 0;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('❌ Failed to get subscriber count: $e');
@@ -549,7 +551,12 @@ class SupabaseService {
           .select('channel_id')
           .eq('subscriber_id', currentUserId);
 
-      return (result as List).map((e) => e['channel_id'] as String).toList();
+      if (result is! List) return [];
+      return result
+          .whereType<Map<String, dynamic>>()
+          .map((e) => e['channel_id'] as String? ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
     } catch (e) {
       if (kDebugMode) {
         debugPrint('❌ Failed to get subscribed channel IDs: $e');
@@ -570,7 +577,7 @@ class SupabaseService {
           .select()
           .eq('user_id', channelId);
 
-      return (result as List).length;
+      return result is List ? result.length : 0;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('❌ Failed to get channel video count: $e');

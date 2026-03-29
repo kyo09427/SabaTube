@@ -101,8 +101,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           .select('*')
           .inFilter('id', channelIds);
 
-      final channels = (profilesResponse as List)
-          .map((p) => UserProfile.fromJson(p as Map<String, dynamic>))
+      final channels = (profilesResponse is List ? profilesResponse : <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map((p) => UserProfile.fromJson(p))
           .toList();
 
       // キャッシュに保存（チャンネル一覧）
@@ -158,10 +159,13 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           .inFilter('user_id', targetChannelIds)
           .order('created_at', ascending: false);
 
-      final videosData = videosResponse as List<dynamic>;
+      final videosData = videosResponse is List<dynamic>
+          ? videosResponse
+          : <dynamic>[];
       
       // 各動画のユーザーIDを収集（重複を除く）
       final userIds = videosData
+          .whereType<Map<String, dynamic>>()
           .map((v) => v['user_id'] as String?)
           .where((id) => id != null && id.isNotEmpty)
           .toSet()
@@ -175,22 +179,26 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
             .select('*')
             .inFilter('id', userIds);
 
-        for (final profile in (profilesResponse as List)) {
-          profilesMap[profile['id'] as String] = profile;
+        for (final profile in (profilesResponse is List ? profilesResponse : <dynamic>[])) {
+          if (profile is Map<String, dynamic>) {
+            final id = profile['id'] as String?;
+            if (id != null) profilesMap[id] = profile;
+          }
         }
       }
 
       // 動画データとプロフィール情報を結合
-      final videos = videosData.map((videoJson) {
-        final userId = videoJson['user_id'] as String?;
-        if (userId != null && profilesMap.containsKey(userId)) {
-          videoJson['profiles'] = profilesMap[userId];
-        }
-        
-        return Video.fromJsonWithProfile(videoJson as Map<String, dynamic>);
-      })
-      .where((video) => video.id.isNotEmpty)
-      .toList();
+      final videos = videosData
+          .whereType<Map<String, dynamic>>()
+          .map((videoJson) {
+            final userId = videoJson['user_id'] as String?;
+            if (userId != null && profilesMap.containsKey(userId)) {
+              videoJson['profiles'] = profilesMap[userId];
+            }
+            return Video.fromJsonWithProfile(videoJson);
+          })
+          .where((video) => video.id.isNotEmpty)
+          .toList();
 
       // キャッシュに保存（動画一覧）
       CacheService.instance.set<List<Video>>(CacheKeys.subscriptionVideos, videos);
