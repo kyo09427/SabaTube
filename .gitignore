@@ -50,3 +50,7 @@ app.*.map.json
 # Firebase - 両ファイルともローカルのみ管理（CIはGitHub Secretsで注入）
 lib/firebase_options.dart
 android/app/google-services.json
+
+# Claude Code / Supabase 一時ファイル
+.claude/
+supabase/.temp/

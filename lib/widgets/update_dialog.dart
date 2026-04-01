@@ -59,8 +59,15 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
   Future<void> _install() async {
     if (_downloadedPath == null) return;
-    await _service.installApk(_downloadedPath!);
-    if (mounted) Navigator.of(context).pop();
+    final success = await _service.installApk(_downloadedPath!);
+    if (!mounted) return;
+    if (success) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _errorMessage = 'インストーラーの起動に失敗しました。\n「提供元不明のアプリ」の許可が必要な場合があります。';
+      });
+    }
   }
 
   @override

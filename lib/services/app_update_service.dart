@@ -158,12 +158,21 @@ class AppUpdateService {
   // ------------------------------------------------------------------
 
   /// ダウンロード済み APK をシステムのインストーラーで開く。
-  Future<void> installApk(String filePath) async {
+  ///
+  /// Android 7.0+ では FileProvider 経由の content:// URI が必要なため
+  /// open_file パッケージを使用する（AndroidManifest.xml の <provider> 設定が必須）。
+  Future<bool> installApk(String filePath) async {
     try {
-      final result = await OpenFile.open(filePath, type: 'application/vnd.android.package-archive');
-      debugPrint('📲 AppUpdateService: インストーラー起動 → ${result.message}');
+      final result = await OpenFile.open(
+        filePath,
+        type: 'application/vnd.android.package-archive',
+      );
+      debugPrint('📲 AppUpdateService: インストーラー起動 → type=${result.type}, msg=${result.message}');
+      // ResultType.done = 0 のみ成功
+      return result.type == ResultType.done;
     } catch (e) {
       debugPrint('❌ AppUpdateService.installApk: $e');
+      return false;
     }
   }
 }
