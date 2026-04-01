@@ -61,7 +61,17 @@ jobs:
           python3 - <<'EOF'
           import base64, os, json, re
           raw = base64.b64decode(os.environ['GOOGLE_SERVICES_JSON_B64'].strip())
-          content = raw.decode('utf-8-sig')
+          # UTF-8-BOM → UTF-8 → latin-1（全バイト受け入れ可）の順でフォールバック
+          content = None
+          for enc in ('utf-8-sig', 'utf-8', 'latin-1'):
+              try:
+                  content = raw.decode(enc)
+                  print(f'Decoded with {enc}')
+                  break
+              except UnicodeDecodeError:
+                  continue
+          if content is None:
+              raise RuntimeError('google-services.json のデコードに失敗しました')
           content = content.replace('\r\n', '\n').replace('\r', '\n')
           # 不正なJSONエスケープシーケンス（例: \: \- \_）を修正する
           content = re.sub(r'\\([^"\\/bfnrtu])', lambda m: m.group(1), content)
