@@ -34,15 +34,24 @@ class NotificationService {
 
   RealtimeChannel? _realtimeChannel;
 
+  /// initialize() の多重呼び出しを防ぐフラグ
+  bool _isInitialized = false;
+
+  /// FCMリスナーの多重登録を防ぐフラグ
+  bool _isFcmInitialized = false;
+
   // ------------------------------------------------------------------
   // 初期化 / 破棄
   // ------------------------------------------------------------------
 
   /// ログイン後に呼び出す。
   /// 未読数取得・Realtime購読・FCM初期化を行う。
+  /// 既に初期化済みの場合は何もしない（多重呼び出し対策）。
   Future<void> initialize() async {
+    if (_isInitialized) return;
+    _isInitialized = true;
     await refreshUnreadCount();
-    _subscribeRealtime();
+    await _subscribeRealtime();
     await _initFcm();
   }
 
@@ -51,6 +60,8 @@ class NotificationService {
     await _realtimeChannel?.unsubscribe();
     _realtimeChannel = null;
     unreadCount.value = 0;
+    _isInitialized = false;
+    _isFcmInitialized = false;
   }
 
   // ------------------------------------------------------------------
@@ -61,6 +72,9 @@ class NotificationService {
   Future<void> _initFcm() async {
     // Web は Android 対応完了後に別途実装予定のためスキップ
     if (kIsWeb) return;
+    // 多重登録防止
+    if (_isFcmInitialized) return;
+    _isFcmInitialized = true;
 
     // バックグラウンドハンドラを登録（アプリ起動前に設定する必要がある）
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -111,11 +125,11 @@ class NotificationService {
   // Realtime 購読
   // ------------------------------------------------------------------
 
-  void _subscribeRealtime() {
+  Future<void> _subscribeRealtime() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
-    _realtimeChannel?.unsubscribe();
+    await _realtimeChannel?.unsubscribe();
 
     _realtimeChannel = _client
         .channel('notifications:$userId')
