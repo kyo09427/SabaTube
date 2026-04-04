@@ -59,15 +59,24 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
     final granted = await _service.canInstallPackages();
     if (!mounted) return;
     if (granted) {
-      // 許可が付与されたのでダウンロードへ進む
       setState(() => _errorMessage = null);
-      await _startDownload();
+      if (_downloadedPath != null) {
+        // APK は既にダウンロード済み（インストール直前で権限が失われたケース）
+        setState(() => _step = _UpdateStep.readyToInstall);
+      } else {
+        await _startDownload();
+      }
     }
     // まだ未許可なら permissionRequired のまま待機（何もしない）
   }
 
-  /// アップデートボタン押下: 権限を確認してからダウンロード開始。
+  /// アップデートボタン押下: URLと権限を確認してからダウンロード開始。
   Future<void> _onUpdatePressed() async {
+    if (widget.updateInfo.downloadUrl.isEmpty) {
+      setState(() => _errorMessage = 'ダウンロードURLが取得できませんでした。');
+      return;
+    }
+
     final granted = await _service.canInstallPackages();
     if (!mounted) return;
 
@@ -147,11 +156,13 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
               color: const Color(0xFFF20D0D),
             ),
             const SizedBox(width: 8),
-            Text(
-              _step == _UpdateStep.permissionRequired
-                  ? 'インストール許可が必要です'
-                  : 'アップデートがあります',
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+            Flexible(
+              child: Text(
+                _step == _UpdateStep.permissionRequired
+                    ? 'インストール許可が必要です'
+                    : 'アップデートがあります',
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
             ),
           ],
         ),
@@ -218,16 +229,20 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
             ValueListenableBuilder<double>(
               valueListenable: _service.downloadProgress,
               builder: (_, progress, __) {
+                // progress == -1.0 は Content-Length 不明（不定表示）
+                final isIndeterminate = progress < 0;
                 return Column(
                   children: [
                     LinearProgressIndicator(
-                      value: progress,
+                      value: isIndeterminate ? null : progress,
                       backgroundColor: const Color(0xFF1A1A1A),
                       valueColor: const AlwaysStoppedAnimation(Color(0xFFF20D0D)),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${(progress * 100).toStringAsFixed(0)}%',
+                      isIndeterminate
+                          ? 'ダウンロード中...'
+                          : '${(progress * 100).toStringAsFixed(0)}%',
                       style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 12),
                     ),
                   ],
@@ -324,7 +339,13 @@ class _UpdateDialogState extends State<UpdateDialog> with WidgetsBindingObserver
           child: const Text('後で', style: TextStyle(color: Color(0xFFAAAAAA))),
         ),
         ElevatedButton.icon(
-          onPressed: () => _service.openInstallPermissionSettings(),
+          onPressed: () async {
+            final opened = await _service.openInstallPermissionSettings();
+            if (!mounted) return;
+            if (!opened) {
+              setState(() => _errorMessage = '設定画面を開けませんでした。手動で設定 → アプリ → SabaTube から許可してください。');
+            }
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFFF20D0D),
             foregroundColor: Colors.white,

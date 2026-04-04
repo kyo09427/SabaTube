@@ -74,12 +74,16 @@ class AppUpdateService {
   }
 
   /// Android の「提供元不明のアプリ」許可設定画面を開く。
-  Future<void> openInstallPermissionSettings() async {
-    if (kIsWeb || !Platform.isAndroid) return;
+  ///
+  /// 設定画面を開けなかった場合は false を返す。
+  Future<bool> openInstallPermissionSettings() async {
+    if (kIsWeb || !Platform.isAndroid) return false;
     try {
       await _channel.invokeMethod('openInstallPermissionSettings');
+      return true;
     } catch (e) {
       debugPrint('❌ AppUpdateService.openInstallPermissionSettings: $e');
+      return false;
     }
   }
 
@@ -160,24 +164,32 @@ class AppUpdateService {
         return null;
       }
 
+      // Content-Length が不明な場合は totalBytes == 0 → 進捗を null（不定）で表示
       final totalBytes = response.contentLength ?? 0;
       int receivedBytes = 0;
 
       final sink = file.openWrite();
-      await for (final chunk in response.stream) {
-        sink.add(chunk);
-        receivedBytes += chunk.length;
-        if (totalBytes > 0) {
-          downloadProgress.value = receivedBytes / totalBytes;
+      try {
+        await for (final chunk in response.stream) {
+          sink.add(chunk);
+          receivedBytes += chunk.length;
+          downloadProgress.value =
+              totalBytes > 0 ? receivedBytes / totalBytes : -1.0;
         }
+      } finally {
+        await sink.close();
       }
-      await sink.close();
 
       downloadProgress.value = 1.0;
       debugPrint('✅ AppUpdateService: APK ダウンロード完了 → $savePath');
       return savePath;
     } catch (e) {
       debugPrint('❌ AppUpdateService.downloadApk: $e');
+      // 中途半端なファイルが残らないよう削除する
+      try {
+        final partial = File('${(await getTemporaryDirectory()).path}/SabaTube_update.apk');
+        if (await partial.exists()) await partial.delete();
+      } catch (_) {}
       return null;
     } finally {
       isDownloading.value = false;
