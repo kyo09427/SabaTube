@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
@@ -46,11 +47,41 @@ class AppUpdateService {
   AppUpdateService._();
   static final AppUpdateService instance = AppUpdateService._();
 
+  static const _channel = MethodChannel('win.okasis.sabatube/install_permission');
+
   /// ダウンロード進捗 (0.0 〜 1.0)。UI側は ValueListenableBuilder でリッスンする。
   final ValueNotifier<double> downloadProgress = ValueNotifier(0.0);
 
   /// ダウンロード中かどうか
   final ValueNotifier<bool> isDownloading = ValueNotifier(false);
+
+  // ------------------------------------------------------------------
+  // インストール権限チェック
+  // ------------------------------------------------------------------
+
+  /// Android 8.0+ で「提供元不明のアプリ」インストール許可が付与されているか確認する。
+  ///
+  /// Android 8.0 未満や Android 以外のプラットフォームでは true を返す。
+  Future<bool> canInstallPackages() async {
+    if (kIsWeb || !Platform.isAndroid) return true;
+    try {
+      final result = await _channel.invokeMethod<bool>('canInstallPackages');
+      return result ?? true;
+    } catch (e) {
+      debugPrint('❌ AppUpdateService.canInstallPackages: $e');
+      return true;
+    }
+  }
+
+  /// Android の「提供元不明のアプリ」許可設定画面を開く。
+  Future<void> openInstallPermissionSettings() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('openInstallPermissionSettings');
+    } catch (e) {
+      debugPrint('❌ AppUpdateService.openInstallPermissionSettings: $e');
+    }
+  }
 
   // ------------------------------------------------------------------
   // アップデート確認
