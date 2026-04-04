@@ -13,6 +13,7 @@ import '../../widgets/app_mobile_top_bar.dart';
 import '../../widgets/app_navigation_scaffold.dart';
 import '../../widgets/update_dialog.dart';
 import '../auth/login_screen.dart';
+import '../channel/channel_screen.dart';
 import 'edit_profile_screen.dart';
 import 'my_videos_screen.dart';
 
@@ -740,6 +741,24 @@ class _MyPageScreenState extends State<MyPageScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        final userId = _supabase.auth.currentUser?.id;
+                        if (userId == null) return;
+                        Navigator.of(context).push(ChannelScreen.route(userId));
+                      },
+                      icon: const Icon(Icons.account_circle_outlined, size: 16),
+                      label: const Text('チャンネルを表示'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.blue,
+                        side: const BorderSide(color: Colors.blue),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -1109,6 +1128,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
         SliverAppBar(
           pinned: true,
           automaticallyImplyLeading: false,
+          titleSpacing: 0,
           title: AppMobileTopBar.buildTitle(context),
           actions: AppMobileTopBar.buildActions(context),
         ),
@@ -1202,6 +1222,20 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   },
                   icon: const Icon(Icons.edit),
                   label: const Text('プロフィール編集'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.blue,
+                    side: const BorderSide(color: Colors.blue),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    final userId = _supabase.auth.currentUser?.id;
+                    if (userId == null) return;
+                    Navigator.of(context).push(ChannelScreen.route(userId));
+                  },
+                  icon: const Icon(Icons.account_circle_outlined),
+                  label: const Text('チャンネルを表示'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.blue,
                     side: const BorderSide(color: Colors.blue),

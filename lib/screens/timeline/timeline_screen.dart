@@ -43,6 +43,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
   // デザイン用カラー（テーマ対応ゲッター）
   static const Color _ytRed = Color(0xFFF20D0D);
+  Color get _accent => Theme.of(context).colorScheme.primary;
   Color get _ytBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get _ytSurface => Theme.of(context).colorScheme.surface;
   Color get _textWhite => Theme.of(context).colorScheme.onSurface;
@@ -361,7 +362,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                                   height: 8,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: isExpanded ? _ytRed : _textGray,
+                                    color: isExpanded ? _accent : _textGray,
                                   ),
                                 ),
                               ],
@@ -370,7 +371,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                             Text(
                               year,
                               style: TextStyle(
-                                color: isExpanded ? _ytRed : _textGray,
+                                color: isExpanded ? _accent : _textGray,
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -403,7 +404,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                               border: isActive
                                   ? Border(
                                       left: BorderSide(
-                                          color: _ytRed, width: 2))
+                                          color: _accent, width: 2))
                                   : null,
                             ),
                             child: Text(
@@ -541,12 +542,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                   // アバター + ユーザー名
                   GestureDetector(
                     onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ChannelScreen(channelId: video.userId),
-                        ),
-                      );
+                      Navigator.of(context).push(ChannelScreen.route(video.userId));
                     },
                     child: Row(
                       children: [
@@ -629,7 +625,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: isActive ? _ytRed : _ytSurface,
+                  color: isActive ? _accent : _ytSurface,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
@@ -735,7 +731,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                         )
                       : RefreshIndicator(
                           onRefresh: () => _loadVideos(isRefresh: true),
-                          color: _ytRed,
+                          color: _accent,
                           backgroundColor: _ytSurface,
                           child: CustomScrollView(
                             controller: _scrollController,

@@ -145,7 +145,7 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => _EditVideoSheet(
+      builder: (context) => EditVideoSheet(
         video: video,
         ytBackground: _ytBackground,
         ytSurface: _ytSurface,
@@ -533,7 +533,7 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
 }
 
 /// 動画編集用のボトムシート
-class _EditVideoSheet extends StatefulWidget {
+class EditVideoSheet extends StatefulWidget {
   final Video video;
   final Color ytBackground;
   final Color ytSurface;
@@ -541,7 +541,7 @@ class _EditVideoSheet extends StatefulWidget {
   final Color textWhite;
   final Color textGray;
 
-  const _EditVideoSheet({
+  const EditVideoSheet({
     required this.video,
     required this.ytBackground,
     required this.ytSurface,
@@ -551,10 +551,10 @@ class _EditVideoSheet extends StatefulWidget {
   });
 
   @override
-  State<_EditVideoSheet> createState() => _EditVideoSheetState();
+  State<EditVideoSheet> createState() => _EditVideoSheetState();
 }
 
-class _EditVideoSheetState extends State<_EditVideoSheet> {
+class _EditVideoSheetState extends State<EditVideoSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
   late final TextEditingController _durationController;

@@ -71,30 +71,40 @@ class AppBottomNavigationBar extends StatelessWidget {
   Widget _buildNavItem({
     required BuildContext context,
     required IconData icon,
+    required IconData activeIcon,
     required String label,
     required int index,
     VoidCallback? onTap,
   }) {
     final isActive = index == currentIndex;
-    final textColor = _textColor(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final itemColor = isActive ? colorScheme.primary : colorScheme.onSurfaceVariant;
 
     return InkWell(
       onTap: onTap ?? () => _onItemTapped(context, index),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: textColor,
-            size: 24,
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: isActive ? colorScheme.primaryContainer : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              isActive ? activeIcon : icon,
+              color: itemColor,
+              size: 24,
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             label,
             style: TextStyle(
-              color: textColor,
+              color: itemColor,
               fontSize: 10,
-              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
         ],
@@ -120,13 +130,15 @@ class AppBottomNavigationBar extends StatelessWidget {
         children: [
           _buildNavItem(
             context: context,
-            icon: Icons.home_filled,
+            icon: Icons.home_outlined,
+            activeIcon: Icons.home_filled,
             label: 'ホーム',
             index: 0,
           ),
           _buildNavItem(
             context: context,
-            icon: Icons.timeline,
+            icon: Icons.timeline_outlined,
+            activeIcon: Icons.timeline,
             label: 'タイムライン',
             index: 1,
           ),
@@ -151,12 +163,14 @@ class AppBottomNavigationBar extends StatelessWidget {
           _buildNavItem(
             context: context,
             icon: Icons.subscriptions_outlined,
+            activeIcon: Icons.subscriptions,
             label: '登録チャンネル',
             index: 3,
           ),
           _buildNavItem(
             context: context,
             icon: Icons.account_circle_outlined,
+            activeIcon: Icons.account_circle,
             label: 'マイページ',
             index: 4,
           ),

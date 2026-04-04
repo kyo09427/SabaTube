@@ -18,6 +18,7 @@ import '../../widgets/skeleton_widgets.dart';
 import '../auth/login_screen.dart';
 import '../channel/channel_screen.dart';
 import '../post/post_video_screen.dart';
+import '../profile/my_videos_screen.dart';
 import '../search/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -47,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // デザイン用カラー（テーマ対応ゲッター）
   static const Color _ytRed = Color(0xFFF20D0D);
+  Color get _accent => Theme.of(context).colorScheme.primary;
   Color get _ytBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get _ytSurface => Theme.of(context).colorScheme.surface;
   Color get _textWhite => Theme.of(context).colorScheme.onSurface;
@@ -557,6 +559,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildVideoCard(Video video) {
     return InkWell(
       onTap: () => _handleVideoTap(video),
+      onLongPress: () => _showVideoOptions(video),
       child: Column(
         children: [
           // サムネイル
@@ -572,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         placeholder: (context, url) => Container(
                           color: _ytSurface,
                           child: Center(
-                            child: CircularProgressIndicator(color: _ytRed),
+                            child: CircularProgressIndicator(color: _accent),
                           ),
                         ),
                         errorWidget: (context, url, error) => Container(
@@ -622,11 +625,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // ユーザーアバター（実際のプロフィール情報を使用）
                 GestureDetector(
                   onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ChannelScreen(channelId: video.userId),
-                      ),
-                    );
+                    Navigator.of(context).push(ChannelScreen.route(video.userId));
                   },
                   child: CircleAvatar(
                     radius: 18,
@@ -685,13 +684,159 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                Icon(Icons.more_vert, color: _textWhite, size: 20),
+                GestureDetector(
+                  onTap: () => _showVideoOptions(video),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.more_vert, color: _textWhite, size: 20),
+                  ),
+                ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// 三点リーダーのオプションシートを表示
+  void _showVideoOptions(Video video) {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    final isOwner = currentUserId != null && video.userId == currentUserId;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _ytSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ハンドル
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 4),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _textGray.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.account_circle_outlined, color: _textWhite),
+              title: Text('チャンネルへ移動', style: TextStyle(color: _textWhite)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).push(ChannelScreen.route(video.userId));
+              },
+            ),
+            if (isOwner) ...[
+              ListTile(
+                leading: Icon(Icons.edit_outlined, color: _textWhite),
+                title: Text('編集', style: TextStyle(color: _textWhite)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _handleEdit(video);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('削除', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _handleDelete(video);
+                },
+              ),
+            ],
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 編集ボトムシートを表示
+  Future<void> _handleEdit(Video video) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _ytSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => EditVideoSheet(
+        video: video,
+        ytBackground: _ytBackground,
+        ytSurface: _ytSurface,
+        ytRed: _ytRed,
+        textWhite: _textWhite,
+        textGray: _textGray,
+      ),
+    );
+
+    if (result == true && mounted) {
+      CacheService.instance.invalidate(CacheKeys.homeVideos);
+      await _loadVideos(isRefresh: true);
+    }
+  }
+
+  /// 削除確認ダイアログを表示
+  Future<void> _handleDelete(Video video) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: _ytSurface,
+        title: Text('動画を削除', style: TextStyle(color: _textWhite)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('「${video.title}」を削除しますか？',
+                style: TextStyle(color: _textWhite)),
+            const SizedBox(height: 8),
+            Text('削除すると元に戻せません。',
+                style: TextStyle(color: _textGray, fontSize: 12)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('キャンセル', style: TextStyle(color: _textGray)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: _ytRed),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true || !mounted) return;
+
+    try {
+      await _supabase.from('video_tags').delete().eq('video_id', video.id);
+      await _supabase.from('videos').delete().eq('id', video.id);
+      CacheService.instance.invalidate(CacheKeys.homeVideos);
+      CacheService.instance.invalidate(CacheKeys.myVideos);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('動画を削除しました'), backgroundColor: Colors.green,
+              duration: Duration(seconds: 2)),
+        );
+        await _loadVideos(isRefresh: true);
+      }
+    } catch (e) {
+      debugPrint('❌ Error deleting video: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('削除に失敗しました'), backgroundColor: Colors.red,
+              duration: Duration(seconds: 2)),
+        );
+      }
+    }
   }
 
   /// スケルトンビュー（初回ロード中に表示）
@@ -836,7 +981,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? _buildErrorView()
                 : RefreshIndicator(
                     onRefresh: () => _loadVideos(isRefresh: true),
-                    color: _ytRed,
+                    color: _accent,
                     backgroundColor: _ytSurface,
                     child: CustomScrollView(
                       controller: _scrollController,
@@ -929,7 +1074,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Center(
-                                  child: CircularProgressIndicator(color: _ytRed),
+                                  child: CircularProgressIndicator(color: _accent),
                                 ),
                               ),
                             ),
@@ -1168,11 +1313,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Widget> _buildSharedActions() {
     return [
-      IconButton(
-        icon: const Icon(Icons.cast),
-        onPressed: () {},
-        color: _textWhite,
-      ),
       ValueListenableBuilder<int>(
         valueListenable: NotificationService.instance.unreadCount,
         builder: (context, count, _) {
@@ -1214,17 +1354,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Widget> _buildPCAppBarActions() {
     return [
       ..._buildSharedActions(),
-      Padding(
-        padding: const EdgeInsets.only(right: 12, left: 4),
-        child: GestureDetector(
-          onTap: _handleLogout,
-          child: const CircleAvatar(
-            radius: 12,
-            backgroundColor: Colors.purple,
-            child: Text('S', style: TextStyle(fontSize: 12, color: Colors.white)),
-          ),
-        ),
-      ),
     ];
   }
 
@@ -1259,18 +1388,6 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         },
       ),
-      if (!_isSearchActive)
-        Padding(
-          padding: const EdgeInsets.only(right: 12, left: 4),
-          child: GestureDetector(
-            onTap: _handleLogout,
-            child: const CircleAvatar(
-              radius: 12,
-              backgroundColor: Colors.purple,
-              child: Text('S', style: TextStyle(fontSize: 12, color: Colors.white)),
-            ),
-          ),
-        ),
     ];
   }
 }

@@ -12,6 +12,7 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   static const Color _ytRed = Color(0xFFF20D0D);
+  Color get _accent => Theme.of(context).colorScheme.primary;
   Color get _background => Theme.of(context).scaffoldBackgroundColor;
   Color get _surface => Theme.of(context).colorScheme.surface;
   Color get _surfaceUnread => Theme.of(context).brightness == Brightness.dark
@@ -57,11 +58,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // チャンネルIDがあればチャンネル画面へ遷移
     final channelId = notification.channelId;
     if (channelId != null && mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ChannelScreen(channelId: channelId),
-        ),
-      );
+      Navigator.of(context).push(ChannelScreen.route(channelId));
     }
   }
 
@@ -119,10 +116,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: _ytRed))  // _ytRed is static const
+          ? Center(child: CircularProgressIndicator(color: _accent))
           : RefreshIndicator(
               onRefresh: _load,
-              color: _ytRed,
+              color: _accent,
               backgroundColor: _surface,
               child: _notifications.isEmpty
                   ? _buildEmpty()

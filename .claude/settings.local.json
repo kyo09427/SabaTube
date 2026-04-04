@@ -14,7 +14,8 @@
       "Bash(cmd.exe /c \"powershell -Command \\\\\"[Convert]::ToBase64String\\([IO.File]::ReadAllBytes\\('lib\\\\\\\\firebase_options.dart'\\)\\)\\\\\"\")",
       "Bash(cmd.exe /c \"powershell -Command \\\\\"[Convert]::ToBase64String\\([IO.File]::ReadAllBytes\\('lib\\\\\\\\firebase_options.dart'\\)\\)\\\\\" > b64_output.txt 2>&1 && type b64_output.txt && del b64_output.txt\")",
       "Bash(openssl base64:*)",
-      "Bash(py:*)"
+      "Bash(py:*)",
+      "Bash(dart analyze:*)"
     ]
   }
 }

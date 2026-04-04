@@ -330,11 +330,7 @@ class _AppSideNavigationState extends State<AppSideNavigation> {
 
     return InkWell(
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ChannelScreen(channelId: channel.id),
-          ),
-        );
+        Navigator.of(context).push(ChannelScreen.route(channel.id));
       },
       borderRadius: BorderRadius.circular(8),
       child: AnimatedContainer(

@@ -30,7 +30,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   List<UserProfile> _subscribedChannels = [];
   String? _selectedChannelId; // nullの場合は「すべて」
   String _selectedCategoryFilter = 'すべて'; // カテゴリフィルター
-  bool _isLoading = true;
+  bool _isLoading = true;       // 初回ロード専用
+  bool _isVideoLoading = false; // チャンネル切り替え時の動画部分ローディング
   String? _errorMessage;
 
   // カテゴリフィルター用
@@ -46,6 +47,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
 
   // デザイン用カラー（テーマ対応ゲッター）
   static const Color _ytRed = Color(0xFFF20D0D);
+  Color get _accent => Theme.of(context).colorScheme.primary;
   Color get _ytBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get _ytSurface => Theme.of(context).colorScheme.surface;
   Color get _textWhite => Theme.of(context).colorScheme.onSurface;
@@ -254,6 +256,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           _videos = videos;
           _applyFilter(); // フィルターを適用
           _isLoading = false;
+          _isVideoLoading = false;
         });
       }
     } catch (e) {
@@ -262,23 +265,25 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         setState(() {
           _errorMessage = '動画の読み込みに失敗しました';
           _isLoading = false;
+          _isVideoLoading = false;
         });
       }
     }
   }
 
-  /// チャンネルを選択
+  /// チャンネルを選択（同じチャンネルを押すとトグル解除）
   void _selectChannel(String? channelId) {
-    if (_selectedChannelId == channelId) return;
+    final newId = (_selectedChannelId == channelId) ? null : channelId;
+    if (_selectedChannelId == newId) return;
 
     _offset = 0;
     _hasMore = true;
     CacheService.instance.invalidate(CacheKeys.subscriptionVideos);
 
     setState(() {
-      _selectedChannelId = channelId;
+      _selectedChannelId = newId;
       _videos = [];
-      _isLoading = true;
+      _isVideoLoading = true; // チャンネルアイコン行は維持したまま動画部分だけローディング
     });
 
     _loadVideos();
@@ -448,7 +453,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                       Icons.video_library_outlined,
                       size: 20,
                       color: _selectedChannelId == null
-                          ? _ytRed
+                          ? _accent
                           : _textWhite,
                     ),
                     const SizedBox(width: 16),
@@ -458,7 +463,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           color: _selectedChannelId == null
-                              ? _ytRed
+                              ? _accent
                               : _textWhite,
                           fontWeight: _selectedChannelId == null
                               ? FontWeight.w600
@@ -503,7 +508,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                           radius: 16,
                           backgroundColor: Colors.purple,
                           backgroundImage: channel.avatarUrl != null
-                              ? NetworkImage(channel.avatarUrl!)
+                              ? CachedNetworkImageProvider(channel.avatarUrl!)
                               : null,
                           child: channel.avatarUrl == null
                               ? Text(
@@ -521,7 +526,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               color:
-                                  isSelected ? _ytRed : _textWhite,
+                                  isSelected ? _accent : _textWhite,
                               fontWeight: isSelected
                                   ? FontWeight.w600
                                   : FontWeight.normal,
@@ -575,14 +580,14 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: isSelected
-                                    ? Border.all(color: _ytRed, width: 2.5)
+                                    ? Border.all(color: _accent, width: 2.5)
                                     : null,
                               ),
                               child: CircleAvatar(
                                 radius: 28,
                                 backgroundColor: Colors.purple,
                                 backgroundImage: channel.avatarUrl != null
-                                    ? NetworkImage(channel.avatarUrl!)
+                                    ? CachedNetworkImageProvider(channel.avatarUrl!)
                                     : null,
                                 child: channel.avatarUrl == null
                                     ? Text(
@@ -598,7 +603,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                               channel.username,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: isSelected ? _ytRed : _textWhite,
+                                color: isSelected ? _accent : _textWhite,
                                 fontWeight: isSelected
                                     ? FontWeight.bold
                                     : FontWeight.normal,
@@ -648,9 +653,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                     child: Text(
                       'すべて',
                       style: TextStyle(
-                        color: _selectedChannelId == null
-                            ? _ytRed
-                            : const Color(0xFF065FD4),
+                        color: _accent,
                         fontSize: 13,
                         fontWeight: _selectedChannelId == null
                             ? FontWeight.bold
@@ -761,7 +764,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         placeholder: (context, url) => Container(
                           color: _ytSurface,
                           child: Center(
-                            child: CircularProgressIndicator(color: _ytRed),
+                            child: CircularProgressIndicator(color: _accent),
                           ),
                         ),
                         errorWidget: (context, url, error) => Container(
@@ -826,11 +829,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   children: [
                     GestureDetector(
                       onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ChannelScreen(channelId: video.userId),
-                          ),
-                        );
+                        Navigator.of(context).push(ChannelScreen.route(video.userId));
                       },
                       child: CircleAvatar(
                         radius: 12,
@@ -892,7 +891,13 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
 
           // 動画スライバーリスト（モバイル・タブレット共通）
           List<Widget> videoSlivers(double contentWidth) => [
-            if (_subscribedChannels.isEmpty)
+            if (_isVideoLoading)
+              SliverFillRemaining(
+                child: Center(
+                  child: CircularProgressIndicator(color: _accent),
+                ),
+              )
+            else if (_subscribedChannels.isEmpty)
               SliverFillRemaining(
                 child: Center(
                   child: Column(
@@ -960,7 +965,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Center(
-                    child: CircularProgressIndicator(color: _ytRed),
+                    child: CircularProgressIndicator(color: _accent),
                   ),
                 ),
               ),
@@ -1003,7 +1008,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         ? RefreshIndicator(
                             onRefresh: () => _loadSubscribedChannels(
                                 isRefresh: true),
-                            color: _ytRed,
+                            color: _accent,
                             backgroundColor: _ytSurface,
                             child: CustomScrollView(
                               controller: _scrollController,
@@ -1041,7 +1046,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                 child: RefreshIndicator(
                                   onRefresh: () => _loadSubscribedChannels(
                                       isRefresh: true),
-                                  color: _ytRed,
+                                  color: _accent,
                                   backgroundColor: _ytSurface,
                                   child: CustomScrollView(
                                     controller: _scrollController,
@@ -1078,7 +1083,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         : RefreshIndicator(
                             onRefresh: () => _loadSubscribedChannels(
                                 isRefresh: true),
-                            color: _ytRed,
+                            color: _accent,
                             backgroundColor: _ytSurface,
                             child: CustomScrollView(
                               controller: _scrollController,

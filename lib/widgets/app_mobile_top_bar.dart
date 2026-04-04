@@ -11,7 +11,11 @@ class AppMobileTopBar {
   static const Color _ytRed = Color(0xFFF20D0D);
 
   /// ロゴタイトル（SabaTube アイコン＋テキスト）
+  /// サイドバーが表示される幅（1100px以上）では非表示
   static Widget buildTitle(BuildContext context) {
+    if (MediaQuery.of(context).size.width >= 1100) {
+      return const SizedBox.shrink();
+    }
     final textWhite = Theme.of(context).colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.only(left: 12),
@@ -39,12 +43,6 @@ class AppMobileTopBar {
     final bg = Theme.of(context).scaffoldBackgroundColor;
 
     return [
-      // キャスト
-      IconButton(
-        icon: const Icon(Icons.cast),
-        color: textWhite,
-        onPressed: () {},
-      ),
       // 通知（未読バッジ付き）
       ValueListenableBuilder<int>(
         valueListenable: NotificationService.instance.unreadCount,

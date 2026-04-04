@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../models/playlist.dart';
 import '../../models/user_profile.dart';
@@ -9,6 +10,7 @@ import '../../services/cache_service.dart';
 import '../../services/playlist_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/youtube_service.dart';
+import '../../widgets/app_mobile_top_bar.dart';
 import '../../widgets/app_navigation_scaffold.dart';
 import '../../widgets/skeleton_widgets.dart';
 
@@ -22,6 +24,24 @@ class ChannelScreen extends StatefulWidget {
     super.key,
     required this.channelId,
   });
+
+  /// Web（iOS Safari 含む）ではアニメーションなしで遷移する
+  static Route<void> route(String channelId) {
+    return PageRouteBuilder(
+      pageBuilder: (_, __, ___) => ChannelScreen(channelId: channelId),
+      transitionDuration: kIsWeb ? Duration.zero : const Duration(milliseconds: 300),
+      reverseTransitionDuration: kIsWeb ? Duration.zero : const Duration(milliseconds: 300),
+      transitionsBuilder: kIsWeb
+          ? (_, __, ___, child) => child
+          : (_, animation, __, child) => SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1, 0),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(parent: animation, curve: Curves.easeInOut)),
+                child: child,
+              ),
+    );
+  }
 
   @override
   State<ChannelScreen> createState() => _ChannelScreenState();
@@ -42,6 +62,7 @@ class _ChannelScreenState extends State<ChannelScreen>
 
   // デザイン用カラー（テーマ対応ゲッター）
   static const Color _ytRed = Color(0xFFF20D0D);
+  Color get _accent => Theme.of(context).colorScheme.primary;
   Color get _ytBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get _ytSurface => Theme.of(context).colorScheme.surface;
   Color get _textWhite => Theme.of(context).colorScheme.onSurface;
@@ -443,13 +464,16 @@ class _ChannelScreenState extends State<ChannelScreen>
       physics: const NeverScrollableScrollPhysics(),
       slivers: [
         SliverAppBar(
-          floating: true,
-          backgroundColor: _ytBackground,
+          pinned: true,
+          backgroundColor: _ytBackground.withValues(alpha: 0.95),
           elevation: 0,
+          titleSpacing: 0,
           leading: IconButton(
             icon: Icon(Icons.arrow_back, color: _textWhite),
             onPressed: () => Navigator.of(context).pop(),
           ),
+          title: AppMobileTopBar.buildTitle(context),
+          actions: AppMobileTopBar.buildActions(context),
         ),
         const SliverToBoxAdapter(child: SkeletonChannelHeader()),
         SliverToBoxAdapter(
@@ -494,32 +518,23 @@ class _ChannelScreenState extends State<ChannelScreen>
                   )
                 : RefreshIndicator(
                     onRefresh: () => _loadChannelData(isRefresh: true),
-                    color: _ytRed,
+                    color: _accent,
                     backgroundColor: _ytSurface,
                     child: NestedScrollView(
                       headerSliverBuilder:
                           (context, innerBoxIsScrolled) => [
                         // ── ナビゲーションバー ──
                         SliverAppBar(
-                          floating: true,
-                          backgroundColor: _ytBackground,
+                          pinned: true,
+                          backgroundColor: _ytBackground.withValues(alpha: 0.95),
                           elevation: 0,
+                          titleSpacing: 0,
                           leading: IconButton(
                             icon: Icon(Icons.arrow_back, color: _textWhite),
                             onPressed: () => Navigator.of(context).pop(),
                           ),
-                          actions: [
-                            IconButton(
-                                icon: Icon(Icons.cast, color: _textWhite),
-                                onPressed: () {}),
-                            IconButton(
-                                icon: Icon(Icons.search, color: _textWhite),
-                                onPressed: () {}),
-                            IconButton(
-                                icon:
-                                    Icon(Icons.more_vert, color: _textWhite),
-                                onPressed: () {}),
-                          ],
+                          title: AppMobileTopBar.buildTitle(context),
+                          actions: AppMobileTopBar.buildActions(context),
                         ),
 
                         // ── プロフィールセクション ──
