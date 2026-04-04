@@ -14,7 +14,8 @@ class VideoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return RepaintBoundary(
+      child: Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -107,6 +108,7 @@ class VideoCard extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+    ); // RepaintBoundary
   }
 }

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../models/playlist.dart';
 import '../../models/video.dart';
@@ -271,27 +272,17 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
                       child:
                           video.thumbnailUrl != null &&
                               video.thumbnailUrl!.isNotEmpty
-                          ? Image.network(
-                              video.thumbnailUrl!,
+                          ? CachedNetworkImage(
+                              imageUrl: video.thumbnailUrl!,
                               width: 160,
                               height: 90,
                               fit: BoxFit.cover,
-                              loadingBuilder:
-                                  (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Container(
-                                      width: 160,
-                                      height: 90,
-                                      color: _ytSurface,
-                                      child: Center(
-                                        child: CircularProgressIndicator(
-                                          color: _ytRed,
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                              errorBuilder: (context, error, stackTrace) =>
+                              placeholder: (context, url) => Container(
+                                width: 160,
+                                height: 90,
+                                color: _ytSurface,
+                              ),
+                              errorWidget: (context, url, error) =>
                                   Container(
                                     width: 160,
                                     height: 90,
@@ -952,12 +943,17 @@ class _EditVideoSheetState extends State<_EditVideoSheet> {
                   if (widget.video.thumbnailUrl != null)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(6),
-                      child: Image.network(
-                        widget.video.thumbnailUrl!,
+                      child: CachedNetworkImage(
+                        imageUrl: widget.video.thumbnailUrl!,
                         width: 120,
                         height: 68,
                         fit: BoxFit.cover,
-                        errorBuilder: (ctx, err, trace) => Container(
+                        placeholder: (ctx, url) => Container(
+                          width: 120,
+                          height: 68,
+                          color: const Color(0xFF272727),
+                        ),
+                        errorWidget: (ctx, url, err) => Container(
                           width: 120,
                           height: 68,
                           color: const Color(0xFF272727),

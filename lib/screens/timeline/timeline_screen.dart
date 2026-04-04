@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../models/video.dart';
 import '../../services/cache_service.dart';
@@ -34,8 +36,10 @@ class _TimelineScreenState extends State<TimelineScreen> {
   String? _expandedYear;
   // 現在スクロールで見えているセクションキー
   String? _activeSectionKey;
-  // スクロールスロットル用（直前の更新時刻）
-  DateTime? _lastScrollUpdate;
+  // スクロールスロットル用タイマー
+  Timer? _scrollThrottle;
+  // セクションの絶対スクロール位置キャッシュ（RenderBox計算を1回だけ行うため）
+  final Map<String, double> _sectionScrollOffsets = {};
 
   // デザイン用カラー（テーマ対応ゲッター）
   static const Color _ytRed = Color(0xFFF20D0D);
@@ -58,36 +62,61 @@ class _TimelineScreenState extends State<TimelineScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _scrollThrottle?.cancel();
     super.dispose();
   }
 
-  /// スクロール位置に応じてアクティブセクションを更新
-  /// 100ms スロットルでフレームごとの重い RenderBox 計算を抑制する。
-  void _onScroll() {
-    final now = DateTime.now();
-    if (_lastScrollUpdate != null &&
-        now.difference(_lastScrollUpdate!) < const Duration(milliseconds: 100)) {
-      return;
-    }
-    _lastScrollUpdate = now;
-
-    for (final key in _sortedMonthKeys) {
-      final globalKey = _sectionKeys[key];
-      final ctx = globalKey?.currentContext;
-      if (ctx == null) continue;
-
-      final renderBox = ctx.findRenderObject() as RenderBox?;
-      if (renderBox == null) continue;
-
-      final position = renderBox.localToGlobal(Offset.zero);
-      if (position.dy >= 0 &&
-          position.dy < MediaQuery.of(ctx).size.height * 0.5) {
-        if (_activeSectionKey != key) {
-          setState(() => _activeSectionKey = key);
-        }
-        break;
+  /// セクションの絶対スクロール位置を事前計算してキャッシュする。
+  /// コンテンツ読み込み完了後に1回だけ呼び出すことで、スクロール中の
+  /// 高コストな RenderBox 計算を排除する。
+  void _computeSectionOffsets() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final newOffsets = <String, double>{};
+      for (final key in _sortedMonthKeys) {
+        final ctx = _sectionKeys[key]?.currentContext;
+        if (ctx == null) continue;
+        final renderBox = ctx.findRenderObject() as RenderBox?;
+        if (renderBox == null) continue;
+        final screenY = renderBox.localToGlobal(Offset.zero).dy;
+        // 絶対スクロール位置 = 現在のスクロールオフセット + 画面上のY座標
+        newOffsets[key] = _scrollController.offset + screenY;
       }
-    }
+      _sectionScrollOffsets
+        ..clear()
+        ..addAll(newOffsets);
+    });
+  }
+
+  /// スクロール位置に応じてアクティブセクションを更新。
+  /// 事前計算済みの位置マップで単純な算術比較のみ行い、
+  /// スクロール中のレイアウト計算をゼロにする。
+  void _onScroll() {
+    // 100ms スロットル（Timer で実装）
+    if (_scrollThrottle?.isActive ?? false) return;
+    _scrollThrottle = Timer(const Duration(milliseconds: 100), () {
+      if (!mounted || _sectionScrollOffsets.isEmpty) return;
+
+      final scrollOffset = _scrollController.offset;
+      // 画面上半分を折り返し点として使用
+      final halfScreen = kIsWeb ? 300.0 : MediaQuery.of(context).size.height * 0.5;
+      String? newActiveKey;
+
+      for (final key in _sortedMonthKeys) {
+        final sectionOffset = _sectionScrollOffsets[key];
+        if (sectionOffset == null) continue;
+        // セクションヘッダーが折り返し点より上にある間はアクティブ候補
+        if (sectionOffset - scrollOffset <= halfScreen) {
+          newActiveKey = key;
+        } else {
+          break;
+        }
+      }
+
+      if (newActiveKey != null && newActiveKey != _activeSectionKey) {
+        setState(() => _activeSectionKey = newActiveKey);
+      }
+    });
   }
 
   /// 動画を読み込んで年月別にグループ化
@@ -114,6 +143,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                 sortedKeys.isNotEmpty ? sortedKeys.first : null;
             _isLoading = false;
           });
+          _computeSectionOffsets();
         }
         return;
       }
@@ -202,6 +232,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
           _activeSectionKey = sortedKeys.isNotEmpty ? sortedKeys.first : null;
           _isLoading = false;
         });
+        _computeSectionOffsets();
       }
     } catch (e) {
       debugPrint('❌ Error loading timeline videos: $e');
@@ -708,6 +739,9 @@ class _TimelineScreenState extends State<TimelineScreen> {
                           backgroundColor: _ytSurface,
                           child: CustomScrollView(
                             controller: _scrollController,
+                            physics: kIsWeb
+                                ? const ClampingScrollPhysics()
+                                : const BouncingScrollPhysics(),
                             slivers: [
                               // ─ アプリバー ─
                               SliverAppBar(

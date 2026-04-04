@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../models/playlist.dart';
 import '../../models/user_profile.dart';
@@ -263,13 +264,17 @@ class _ChannelScreenState extends State<ChannelScreen>
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: video.thumbnailUrl != null
-                        ? Image.network(
-                            video.thumbnailUrl!,
+                        ? CachedNetworkImage(
+                            imageUrl: video.thumbnailUrl!,
                             width: 160,
                             height: 90,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
+                            placeholder: (context, url) => Container(
+                              width: 160,
+                              height: 90,
+                              color: _ytSurface,
+                            ),
+                            errorWidget: (context, url, error) => Container(
                               width: 160,
                               height: 90,
                               color: _ytSurface,
@@ -364,12 +369,14 @@ class _ChannelScreenState extends State<ChannelScreen>
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: playlist.thumbnailUrl != null
-                      ? Image.network(
-                          playlist.thumbnailUrl!,
+                      ? CachedNetworkImage(
+                          imageUrl: playlist.thumbnailUrl!,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
+                          placeholder: (context, url) => Container(
+                            color: _ytSurface,
+                          ),
+                          errorWidget: (context, url, error) => Container(
                             color: _ytSurface,
                             child: Icon(Icons.playlist_play,
                                 color: _textGray, size: 40),

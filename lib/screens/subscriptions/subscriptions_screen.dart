@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_profile.dart';
 import '../../models/video.dart';
@@ -55,6 +57,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   bool _hasMore = true;
   bool _isLoadingMore = false;
   final ScrollController _scrollController = ScrollController();
+  Timer? _scrollDebounce;
 
   @override
   void initState() {
@@ -64,14 +67,19 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 400) {
-      _loadMoreVideos();
-    }
+    if (_scrollDebounce?.isActive ?? false) return;
+    _scrollDebounce = Timer(const Duration(milliseconds: 50), () {
+      if (!mounted) return;
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent * 0.85) {
+        _loadMoreVideos();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _scrollDebounce?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -999,6 +1007,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                             backgroundColor: _ytSurface,
                             child: CustomScrollView(
                               controller: _scrollController,
+                              physics: kIsWeb
+                                  ? const ClampingScrollPhysics()
+                                  : const BouncingScrollPhysics(),
                               slivers: [
                                 SliverAppBar(
                                   floating: true,
@@ -1071,6 +1082,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                             backgroundColor: _ytSurface,
                             child: CustomScrollView(
                               controller: _scrollController,
+                              physics: kIsWeb
+                                  ? const ClampingScrollPhysics()
+                                  : const BouncingScrollPhysics(),
                               slivers: [
                                 // 共通上部バー（モバイル）
                                 SliverAppBar(

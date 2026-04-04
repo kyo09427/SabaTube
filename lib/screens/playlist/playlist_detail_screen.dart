@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../models/playlist.dart';
 import '../../models/video.dart';
@@ -125,13 +126,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: video.thumbnailUrl != null
-                    ? Image.network(
-                        video.thumbnailUrl!,
+                    ? CachedNetworkImage(
+                        imageUrl: video.thumbnailUrl!,
                         width: 160,
                         height: 90,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            Container(
+                        placeholder: (context, url) => Container(
+                          width: 160,
+                          height: 90,
+                          color: _ytSurface,
+                        ),
+                        errorWidget: (context, url, error) => Container(
                           width: 160,
                           height: 90,
                           color: _ytSurface,

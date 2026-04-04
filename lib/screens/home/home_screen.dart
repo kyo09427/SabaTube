@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/video.dart';
@@ -62,6 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _hasMore = true;
   bool _isLoadingMore = false;
   final ScrollController _scrollController = ScrollController();
+  Timer? _scrollDebounce;
 
   @override
   void initState() {
@@ -74,10 +77,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 400) {
-      _loadMoreVideos();
-    }
+    if (_scrollDebounce?.isActive ?? false) return;
+    _scrollDebounce = Timer(const Duration(milliseconds: 50), () {
+      if (!mounted) return;
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent * 0.85) {
+        _loadMoreVideos();
+      }
+    });
   }
 
   Future<void> _checkForUpdate() async {
@@ -92,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _cleanupRealtimeSubscription();
     _searchController.dispose();
     _pcSearchController.dispose();
+    _scrollDebounce?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -832,6 +840,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     backgroundColor: _ytSurface,
                     child: CustomScrollView(
                       controller: _scrollController,
+                      physics: kIsWeb
+                          ? const ClampingScrollPhysics()
+                          : const BouncingScrollPhysics(),
                       slivers: [
                         // ヘッダー
                         SliverAppBar(
