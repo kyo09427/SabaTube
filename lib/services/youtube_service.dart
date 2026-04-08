@@ -64,6 +64,7 @@ class YouTubeService {
   /// - https://m.youtube.com/watch?v=VIDEO_ID
   /// - https://www.youtube.com/embed/VIDEO_ID
   /// - https://www.youtube.com/v/VIDEO_ID
+  /// - https://www.youtube.com/shorts/VIDEO_ID
   /// 
   /// [url] YouTube動画のURL
   /// 
@@ -102,6 +103,15 @@ class YouTubeService {
         final videoId = uri.queryParameters['v'];
         if (videoId != null && videoId.isNotEmpty) {
           return _validateVideoId(videoId);
+        }
+
+        // /shorts/VIDEO_ID 形式
+        if (uri.pathSegments.contains('shorts')) {
+          final index = uri.pathSegments.indexOf('shorts');
+          if (index + 1 < uri.pathSegments.length) {
+            final id = uri.pathSegments[index + 1].split('?')[0].split('&')[0];
+            return _validateVideoId(id);
+          }
         }
 
         // /embed/VIDEO_ID 形式
