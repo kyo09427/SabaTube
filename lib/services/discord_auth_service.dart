@@ -61,18 +61,12 @@ class DiscordAuthService {
         debugPrint('🔐 Starting Discord OAuth flow...');
       }
 
-      // プラットフォームに応じたリダイレクトURLを設定
       final redirectUrl = _getRedirectUrl();
 
-      if (kDebugMode) {
-        debugPrint('🔗 Redirect URL: $redirectUrl');
-      }
-
-      // Supabaseの組み込みDiscord OAuth を使用
-      // guilds スコープを追加して、サーバーメンバーシップを確認できるようにする
+      // GoTrueはデフォルトで "identify email" を追加するため、guilds スコープのみ追加指定する
       await SupabaseService.instance.client.auth.signInWithOAuth(
         OAuthProvider.discord,
-        scopes: 'identify email guilds',
+        scopes: 'guilds',
         redirectTo: redirectUrl,
       );
 

@@ -84,10 +84,16 @@ class SupabaseService {
       }
 
       // Supabaseの初期化
+      // authFlowType.implicitを指定する理由:
+      // PKCEモードではコード検証フローが複雑になるため、
+      // Discord OAuth との相性が良い implicit モードを使用する。
       await Supabase.initialize(
         url: supabaseUrl,
         anonKey: supabaseAnonKey,
         debug: kDebugMode,
+        authOptions: const FlutterAuthClientOptions(
+          authFlowType: AuthFlowType.implicit,
+        ),
       );
 
       _client = Supabase.instance.client;
